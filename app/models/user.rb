@@ -1,21 +1,20 @@
 class User < ApplicationRecord
   # Include default devise modules. Others available are:
   # :confirmable, :lockable, :timeoutable, :trackable and :omniauthable
+  include Devise::JWT::RevocationStrategies::JTIMatcher
   devise :database_authenticatable, :registerable,
-         :recoverable, :rememberable, :validatable#, :confirmable
+         :recoverable, :rememberable, :validatable, :jwt_authenticatable, jwt_revocation_strategy: self
   
-  before_create :ensure_token
-
-  def ensure_token
-    self.api_token = generate_access_token
+  def get_access_token
+    generate_jwt
   end
 
   private
 
-  def generate_access_token
-    loop do
-      api_token = SecureRandom.uuid
-      break api_token unless User.find_by(api_token: api_token)
-    end
+  def generate_jwt
+    JWT.encode(
+      { id: id, jti: jti, exp: 30.days.from_now.to_i },
+      Rails.application.credentials.devise_jwt_secret_key
+    )
   end
 end

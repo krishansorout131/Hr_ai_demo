@@ -1,13 +1,16 @@
 class Users::SessionsController < MainController
-  # skip_before_action :verify_signed_out_user, only: [:destroy]
-  before_action :restrict_access, except: [:create, :forget_password]
+  before_action :authenticate_user!, except: [:create, :edit_password, :forgot_password]
 
   # For Login a user
   def create
     user = User.find_by(email: params[:email])
 
     if user&.valid_password?(params[:password])
-      render json: { message: 'Login successful', user: user, status: 200 }, status: 200
+      render json: { message: 'Login successful',
+        user: UserSerializer.new(user).serializable_hash[:data][:attributes],
+        token: user.get_access_token,
+        status: 200 
+      }, status: 200
     else
       render json: { message: 'Invalid email or password' }, status: :unauthorized
     end
@@ -45,15 +48,16 @@ class Users::SessionsController < MainController
 
   # Edit user password
   def edit_password
-    unless @current_user.blank?
+    user = User.reset_password_by_token(reset_password_token: params[:reset_password_token])
+    if user && user.persisted?
       if params[:new_password] == params[:new_password_confirmation]
-        @current_user.update(password: params[:new_password], password_confirmation: params[:new_password_confirmation])
+        user.update(password: params[:new_password], password_confirmation: params[:new_password_confirmation])
         render json: { message: 'Password updated successfully' }, status: 200
       else
         render json: { message: 'New password and password confirmation do not match' }, status: 422
       end
     else
-      render json: {error: 'No such user found!'}, status: 404
+      render json: {error: 'The token has expired, please generate new token through the forget password link.'}, status: 404
     end
   end
 end

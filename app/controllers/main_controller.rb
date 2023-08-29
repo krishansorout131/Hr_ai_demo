@@ -1,19 +1,32 @@
 class MainController < ApplicationController
-  before_action :restrict_access
+  before_action :authenticate_user!
 
   private
-  
-  def restrict_access
-    access_token = request.headers["Authorization"]
-    unless access_token.blank?
-      user = User.find_by(api_token: access_token)
-      if user.present?
-        @current_user = user
-      else
-        render json: { error: "Access Token not found", status: 400 }, status: 200
-      end
-    else
-      render json: { error: "Access Token not provided", status: 400 }, status: 200
+
+  def authenticate_user!
+    token = extract_token_from_request(request)
+    begin
+      decoded_token = JWT.decode(
+        token,
+        Rails.application.credentials.devise_jwt_secret_key,
+        true,
+        algorithm: 'HS256'
+      )
+      
+      user_id = decoded_token[0]['id']
+      @current_user = User.find(user_id)
+    rescue JWT::ExpiredSignature, JWT::VerificationError, ActiveRecord::RecordNotFound
+      render json: { error: 'Unauthorized' }, status: :unauthorized
     end
+  end
+
+  def extract_token_from_request(request)
+    header = request.headers['Authorization']
+    token = header.split(' ').last if header.present?
+    token
+  end
+
+  def current_user
+    @current_user
   end
 end
