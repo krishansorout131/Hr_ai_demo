@@ -60,4 +60,8 @@ class Users::SessionsController < MainController
       render json: {error: 'The token has expired, please generate new token through the forget password link.'}, status: 404
     end
   end
+
+  def get_user
+    render json: { user: UserSerializer.new(@current_user).serializable_hash[:data][:attributes] }
+  end
 end
